@@ -1,0 +1,48 @@
+﻿version: '3.8'
+
+volumes:
+  rabbitmq_data:
+    driver: local
+
+services:
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: rabbitmq
+      RABBITMQ_DEFAULT_PASS: As2!aE
+    ports:
+      - "5672:5672"    # RabbitMQ bağlantı portu
+      - "15672:15672"  # RabbitMQ yönetim paneli portu
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    command: >
+      sh -c "
+      rabbitmq-plugins enable rabbitmq_management &&
+      rabbitmq-plugins enable rabbitmq_delayed_message_exchange
+      "
+
+  publisher:
+    image: publisher
+    container_name: publisher
+    build:
+      context: .
+      dockerfile: Publisher/Dockerfile
+    restart: always
+    ports:
+      - "5001:80"
+    depends_on:
+      - rabbitmq
+
+  consumer:
+    image: consumer
+    container_name: consumer
+    build:
+      context: .
+      dockerfile: Consumer/Dockerfile
+    restart: always
+    ports:
+      - "5002:80"
+    depends_on:
+      - rabbitmq
