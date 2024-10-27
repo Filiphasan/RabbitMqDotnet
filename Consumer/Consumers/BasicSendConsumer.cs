@@ -17,6 +17,7 @@ public class BasicSendConsumer : BaseConsumer<QueueBasicModel>
         var scope = ScopeFactory.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<IMyService>();
         await service.DoBasicSendConsumerWorkAsync(message);
+        scope.Dispose();
     }
 
     protected override void SetupConsumer()
