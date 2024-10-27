@@ -1,24 +1,33 @@
+using System.Reflection;
+using Consumer.Consumers;
+using Shared.Services;
+
 namespace Consumer;
 
-public class Worker : BackgroundService
+public class Worker(RabbitMqConnectionService rabbitMqConnectionService, ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory) : BackgroundService
 {
-    private readonly ILogger<Worker> _logger;
+    private readonly ILogger<Worker> _logger = loggerFactory.CreateLogger<Worker>();
 
-    public Worker(ILogger<Worker> logger)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger = logger;
-    }
+        var consumers = Assembly.GetExecutingAssembly().GetTypes()
+            .Where(x => x is { IsClass: true, IsAbstract: false } && x.IsAssignableFrom(typeof(BaseConsumer<>)));
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        while (!stoppingToken.IsCancellationRequested)
+        foreach (var consumer in consumers)
         {
-            if (_logger.IsEnabled(LogLevel.Information))
+            try
             {
-                _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
-            }
+                var instance = Activator.CreateInstance(consumer, rabbitMqConnectionService, loggerFactory, scopeFactory);
 
-            await Task.Delay(1000, stoppingToken);
+                var executingMethod = consumer.BaseType!.GetMethod("StartConsuming");
+                executingMethod!.Invoke(instance, null);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to start consumer {Consumer}", consumer.Name);
+            }
         }
+
+        return Task.CompletedTask;
     }
 }

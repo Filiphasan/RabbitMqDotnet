@@ -1,8 +1,13 @@
+using Carter;
+using Publisher;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddServices(builder.Configuration)
+    .AddCarter();
 
 var app = builder.Build();
 
@@ -14,5 +19,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.MapCarter();
 
 await app.RunAsync();

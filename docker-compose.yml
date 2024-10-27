@@ -11,7 +11,7 @@ services:
     restart: always
     environment:
       RABBITMQ_DEFAULT_USER: rabbitmq
-      RABBITMQ_DEFAULT_PASS: As2!aE
+      RABBITMQ_DEFAULT_PASS: 00PQp6P8iD0HtTpGQ98kS04rU3Fkd2
     ports:
       - "5672:5672"    # RabbitMQ bağlantı portu
       - "15672:15672"  # RabbitMQ yönetim paneli portu
