@@ -15,7 +15,7 @@ public class RabbitMqService(RabbitMqConnectionService rabbitMqConnectionService
         channel.BasicPublish("", queueName, null, body);
     }
 
-    public async Task PublishAsync<T>(T message, string exchangeName, string routingKey, string exchangeType = ExchangeType.Fanout)
+    public async Task PublishAsync<T>(T message, string exchangeName, string routingKey, string exchangeType = ExchangeType.Direct)
     {
         var channel = await rabbitMqConnectionService.GetChannelAsync();
         channel.ExchangeDeclare(exchangeName, exchangeType);
