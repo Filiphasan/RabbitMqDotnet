@@ -1,5 +1,4 @@
 using System.Reflection;
-using Consumer.Consumers;
 using Shared.Services;
 
 namespace Consumer;
@@ -11,7 +10,8 @@ public class Worker(RabbitMqConnectionService rabbitMqConnectionService, ILogger
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var consumers = Assembly.GetExecutingAssembly().GetTypes()
-            .Where(x => x is { IsClass: true, IsAbstract: false } && x.IsAssignableFrom(typeof(BaseConsumer<>)));
+            .Where(x => x is { IsClass: true, IsAbstract: false, Namespace: "Consumer.Consumers" })
+            .ToList();
 
         foreach (var consumer in consumers)
         {

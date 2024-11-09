@@ -12,8 +12,8 @@ public abstract class BaseConsumer<T> where T : class, new()
     protected readonly IModel Channel;
     protected readonly ILogger<T> Logger;
     protected readonly IServiceScopeFactory ScopeFactory;
-    protected string QueueName = string.Empty;
-    protected string ExchangeName = string.Empty;
+    protected string QueueName = string.Empty; // Main Queue
+    protected string ExchangeName = string.Empty; // For Retry
     protected bool UseRetry = true; // For Retry Message when fail
     protected int MaxRetryCount = 5; // Default 5 times
     protected int RetryDelayMs = 300_000; // Default 5 minutes
@@ -45,8 +45,8 @@ public abstract class BaseConsumer<T> where T : class, new()
             Channel.QueueDeclare(queue: QueueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
             if (UseRetry)
             {
-                Channel.ExchangeDeclare(exchange: ExchangeName, type: "x-delayed-message", durable: true, arguments: _delayedExchangeArguments);
-                Channel.QueueBind(queue: QueueName, exchange: ExchangeName, routingKey: "");
+                Channel.ExchangeDeclare(exchange: $"{ExchangeName}.delayed.retry", type: "x-delayed-message", durable: true, arguments: _delayedExchangeArguments);
+                Channel.QueueBind(queue: QueueName, exchange: $"{ExchangeName}.delayed.retry", routingKey: "");
             }
 
             var consumer = new EventingBasicConsumer(Channel);
@@ -107,7 +107,7 @@ public abstract class BaseConsumer<T> where T : class, new()
             var properties = Channel.CreateBasicProperties();
             properties.Headers.Add("x-retry-count", currentRetryCount + 1);
             properties.Headers.Add("x-delay", delayMs);
-            Channel.BasicPublish(ExchangeName, "", basicProperties: properties, body: body);
+            Channel.BasicPublish($"{ExchangeName}.delayed.retry", "", basicProperties: properties, body: body);
         }
         catch (Exception ex)
         {
