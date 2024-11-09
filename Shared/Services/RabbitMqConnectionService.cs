@@ -1,13 +1,30 @@
 ﻿using Microsoft.Extensions.Logging;
+using Polly;
 using RabbitMQ.Client;
 
 namespace Shared.Services;
 
-public class RabbitMqConnectionService(IConnectionFactory connectionFactory, ILogger<RabbitMqConnectionService> logger)
+public class RabbitMqConnectionService
 {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly AsyncPolicy _connectionRetryPolicy;
 
     private IConnection? _connection;
+    private readonly IConnectionFactory _connectionFactory;
+    private readonly ILogger<RabbitMqConnectionService> _logger;
+
+    public RabbitMqConnectionService(IConnectionFactory connectionFactory, ILogger<RabbitMqConnectionService> logger)
+    {
+        _connectionFactory = connectionFactory;
+        _logger = logger;
+        
+        _connectionRetryPolicy = Policy
+            .Handle<Exception>()
+            .WaitAndRetryAsync(5, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)), (exception, timeSpan, _, retryCount) =>
+            {
+                _logger.LogError(exception, "RabbitMQ connection failed, retrying in {TimeOut}ms RetryCount: {RetryCount}", timeSpan.TotalMilliseconds, retryCount);
+            });
+    }
 
     private bool IsConnected => _connection is { IsOpen: true };
 
@@ -32,14 +49,19 @@ public class RabbitMqConnectionService(IConnectionFactory connectionFactory, ILo
                 return;
             }
 
-            if (_connection != null)
+            await _connectionRetryPolicy.ExecuteAsync(() =>
             {
-                _connection.ConnectionShutdown -= OnConnectionShutdown;
-                _connection.Dispose();
-            }
+                if (_connection != null)
+                {
+                    _connection.ConnectionShutdown -= OnConnectionShutdown;
+                    _connection.Dispose();
+                }
 
-            _connection = connectionFactory.CreateConnection();
-            _connection.ConnectionShutdown += OnConnectionShutdown;
+                _connection = _connectionFactory.CreateConnection("ProjectName");
+                _connection.ConnectionShutdown += OnConnectionShutdown;
+
+                return Task.CompletedTask;
+            });
         }
         finally
         {
@@ -49,7 +71,7 @@ public class RabbitMqConnectionService(IConnectionFactory connectionFactory, ILo
 
     private void OnConnectionShutdown(object? sender, ShutdownEventArgs e)
     {
-        logger.LogError("RabbitMQ connection shutdown. Reason: {Reason}", e.ReplyText);
-        HandleConnectionAsync().Wait();
+        _logger.LogError("RabbitMQ connection shutdown. Reason: {Reason}", e.ReplyText);
+        HandleConnectionAsync().GetAwaiter().GetResult();
     }
 }
