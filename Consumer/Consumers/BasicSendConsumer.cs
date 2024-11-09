@@ -24,7 +24,7 @@ public class BasicSendConsumer : BaseConsumer<QueueBasicModel>
     {
         QueueName = QueueConstant.QueueNames.BasicSendQueue;
         ExchangeName = QueueConstant.ExchangeNames.BasicSendExchange;
-        RoutingKey = "";
+        UseRetry = true;
         MaxRetryCount = 3;
         RetryDelayMs = 60_000;
     }

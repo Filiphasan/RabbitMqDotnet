@@ -12,17 +12,24 @@ public abstract class BaseConsumer<T> where T : class, new()
     protected readonly IModel Channel;
     protected readonly ILogger<T> Logger;
     protected readonly IServiceScopeFactory ScopeFactory;
-    protected string QueueName;
-    protected string ExchangeName;
-    protected string RoutingKey;
+    protected string QueueName = string.Empty;
+    protected string ExchangeName = string.Empty;
+    protected bool UseRetry = true; // For Retry Message when fail
     protected int MaxRetryCount = 5; // Default 5 times
     protected int RetryDelayMs = 300_000; // Default 5 minutes
+
+    private readonly Dictionary<string, object> _delayedExchangeArguments;
 
     protected BaseConsumer(RabbitMqConnectionService rabbitMqConnectionService, ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory)
     {
         Channel = rabbitMqConnectionService.GetChannelAsync().Result;
         Logger = loggerFactory.CreateLogger<T>();
         ScopeFactory = scopeFactory;
+
+        _delayedExchangeArguments = new Dictionary<string, object>
+        {
+            { "x-delayed-type", "direct" }
+        };
     }
 
     protected abstract Task ConsumeAsync(T message);
@@ -34,36 +41,20 @@ public abstract class BaseConsumer<T> where T : class, new()
         try
         {
             SetupConsumer();
-            var queueArguments = new Dictionary<string, object>
-            {
-                { "x-dead-letter-exchange", ExchangeName },
-                { "x-dead-letter-routing-key", RoutingKey }
-            };
-            var retryQueueArguments = new Dictionary<string, object>
-            {
-                { "x-message-ttl", RetryDelayMs },
-                { "x-dead-letter-exchange", ExchangeName },
-                { "x-dead-letter-routing-key", RoutingKey }
-            };
 
-            Channel.ExchangeDeclare(exchange: ExchangeName, type: ExchangeType.Direct);
-            Channel.QueueDeclare(queue: QueueName, durable: true, exclusive: false, autoDelete: false, arguments: queueArguments);
-            Channel.QueueDeclare(queue: $"{QueueName}.retry", durable: true, exclusive: false, autoDelete: false, arguments: retryQueueArguments);
-            Channel.QueueBind(queue: QueueName, exchange: ExchangeName, routingKey: RoutingKey);
-            Channel.QueueBind(queue: $"{QueueName}.retry", exchange: ExchangeName, routingKey: $"{RoutingKey}.retry");
+            Channel.QueueDeclare(queue: QueueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
+            if (UseRetry)
+            {
+                Channel.ExchangeDeclare(exchange: ExchangeName, type: "x-delayed-message", durable: true, arguments: _delayedExchangeArguments);
+                Channel.QueueBind(queue: QueueName, exchange: ExchangeName, routingKey: "");
+            }
 
             var consumer = new EventingBasicConsumer(Channel);
             consumer.Received += async (_, ea) =>
             {
                 string? messageJson = null;
-                int currentRetryCount = 0;
                 try
                 {
-                    if (ea.BasicProperties.Headers.TryGetValue("max-retry-count", out object? value))
-                    {
-                        currentRetryCount = (int)value;
-                    }
-                    
                     var body = ea.Body.ToArray();
                     var json = Encoding.UTF8.GetString(body);
                     messageJson = json;
@@ -77,19 +68,8 @@ public abstract class BaseConsumer<T> where T : class, new()
                 }
                 catch (Exception ex)
                 {
-                    currentRetryCount++;
-                    Logger.LogError(ex, "Failed to consume message QueueName: {QueueName} Message: {Message}", QueueName, messageJson);
-
-                    if (currentRetryCount < MaxRetryCount)
-                    {
-                        Channel.BasicReject(ea.DeliveryTag, false);
-                        Channel.BasicPublish(exchange: ExchangeName, routingKey: $"{RoutingKey}.retry", body: ea.Body);
-                    }
-                    else
-                    {
-                        // Optional: Save DB for Process Manual or Alert or something
-                        Channel.BasicAck(ea.DeliveryTag, false);
-                    }
+                    Logger.LogError(ex, "Failed to consume message QueueName: {QueueName} UseRetry: {UseRetry} Message: {Message}", QueueName, UseRetry, messageJson);
+                    RetryOrAckMessage(ea, ea.Body.ToArray());
                 }
             };
             Channel.BasicConsume(QueueName, false, consumer);
@@ -97,6 +77,41 @@ public abstract class BaseConsumer<T> where T : class, new()
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to start consuming QueueName: {QueueName}", QueueName);
+        }
+    }
+
+    private void RetryOrAckMessage(BasicDeliverEventArgs ea, byte[] body, int? delayMs = null)
+    {
+        try
+        {
+            int currentRetryCount = 0;
+            Channel.BasicAck(ea.DeliveryTag, false);
+            if (ea.BasicProperties.Headers.TryGetValue("x-retry-count", out object? value))
+            {
+                currentRetryCount = (int)value;
+            }
+
+            if (!UseRetry)
+            {
+                return;
+            }
+
+            if (currentRetryCount > MaxRetryCount)
+            {
+                Logger.LogInformation("Max retry count exceeded for message QueueName: {QueueName} Message: {Message}", QueueName, Encoding.UTF8.GetString(body));
+                return;
+            }
+
+            delayMs ??= RetryDelayMs;
+
+            var properties = Channel.CreateBasicProperties();
+            properties.Headers.Add("x-retry-count", currentRetryCount + 1);
+            properties.Headers.Add("x-delay", delayMs);
+            Channel.BasicPublish(ExchangeName, "", basicProperties: properties, body: body);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to retry message QueueName: {QueueName}", QueueName);
         }
     }
 }
