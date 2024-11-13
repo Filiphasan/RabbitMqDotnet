@@ -1,4 +1,5 @@
 using System.Reflection;
+using Consumer.Consumers.Abstract;
 using Shared.Services;
 
 namespace Consumer;
@@ -17,10 +18,13 @@ public class Worker(RabbitMqConnectionService rabbitMqConnectionService, ILogger
         {
             try
             {
-                var instance = Activator.CreateInstance(consumer, rabbitMqConnectionService, loggerFactory, scopeFactory);
+                if (Activator.CreateInstance(consumer, rabbitMqConnectionService, loggerFactory, scopeFactory) is not IBaseConsumer instance)
+                {
+                    _logger.LogInformation("Failed to create instance of consumer {Consumer}", consumer.Name);
+                    continue;
+                }
 
-                var executingMethod = consumer.BaseType!.GetMethod("StartConsuming");
-                executingMethod!.Invoke(instance, null);
+                instance.StartConsuming();
             }
             catch (Exception ex)
             {

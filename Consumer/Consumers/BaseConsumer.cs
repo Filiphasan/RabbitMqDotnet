@@ -1,13 +1,13 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
+using Consumer.Consumers.Abstract;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Shared.Services;
 
 namespace Consumer.Consumers;
 
-public abstract class BaseConsumer<T> where T : class, new()
+public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
 {
     protected readonly IModel Channel;
     protected readonly ILogger<T> Logger;
