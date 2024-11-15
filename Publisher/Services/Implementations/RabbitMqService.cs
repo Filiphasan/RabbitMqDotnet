@@ -8,9 +8,11 @@ namespace Publisher.Services.Implementations;
 
 public class RabbitMqService(RabbitMqConnectionService rabbitMqConnectionService) : IRabbitMqService
 {
-    public async Task SendAsync<T>(T message, string queueName)
+    public async Task SendAsync<T>(T message, string queueName, string messageId)
     {
         var channel = await rabbitMqConnectionService.GetChannelAsync();
+        var properties = channel.CreateBasicProperties();
+        properties.Headers = new Dictionary<string, object> { { "x-message-id", messageId } };
         var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
         channel.BasicPublish("", queueName, null, body);
     }

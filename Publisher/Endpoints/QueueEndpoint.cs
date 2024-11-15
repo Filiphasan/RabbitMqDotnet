@@ -25,7 +25,7 @@ public class QueueEndpoint : ICarterModule
             PickedNumber = request.PickedNumber,
             Message = request.Message
         };
-        await rabbitMqService.SendAsync(queueModel, QueueConstant.QueueNames.BasicSendQueue);
+        await rabbitMqService.SendAsync(queueModel, QueueConstant.QueueNames.BasicSendQueue, Guid.NewGuid().ToString());
         return Results.Ok();
     }
 

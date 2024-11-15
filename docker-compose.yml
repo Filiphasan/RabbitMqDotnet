@@ -17,9 +17,11 @@ services:
       - "15672:15672"  # RabbitMQ yönetim paneli portu
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    # Command for delayed message and message duplication control
     command: >
       sh -c "
       rabbitmq-plugins enable rabbitmq_management &&
+      rabbitmq-plugins enable rabbitmq_message_deduplication &&
       rabbitmq-plugins enable rabbitmq_delayed_message_exchange
       "
 
