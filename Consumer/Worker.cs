@@ -8,7 +8,7 @@ public class Worker(RabbitMqConnectionService rabbitMqConnectionService, ILogger
 {
     private readonly ILogger<Worker> _logger = loggerFactory.CreateLogger<Worker>();
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var consumers = Assembly.GetExecutingAssembly().GetTypes()
             .Where(x => x is { IsClass: true, IsAbstract: false, Namespace: "Consumer.Consumers" })
@@ -24,14 +24,12 @@ public class Worker(RabbitMqConnectionService rabbitMqConnectionService, ILogger
                     continue;
                 }
 
-                instance.StartConsuming();
+                await instance.StartConsumingAsync(stoppingToken);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to start consumer {Consumer}", consumer.Name);
             }
         }
-
-        return Task.CompletedTask;
     }
 }

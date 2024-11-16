@@ -18,33 +18,32 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     # Command for delayed message and message duplication control
-    command: >
-      sh -c "
-      rabbitmq-plugins enable rabbitmq_management &&
-      rabbitmq-plugins enable rabbitmq_message_deduplication &&
-      rabbitmq-plugins enable rabbitmq_delayed_message_exchange
-      "
+#    command: >
+#      sh -c "
+#      rabbitmq-plugins enable rabbitmq_message_deduplication &&
+#      rabbitmq-plugins enable rabbitmq_delayed_message_exchange
+#      "
 
-  publisher:
-    image: publisher
-    container_name: publisher
-    build:
-      context: .
-      dockerfile: Publisher/Dockerfile
-    restart: always
-    ports:
-      - "5001:80"
-    depends_on:
-      - rabbitmq
-
-  consumer:
-    image: consumer
-    container_name: consumer
-    build:
-      context: .
-      dockerfile: Consumer/Dockerfile
-    restart: always
-    ports:
-      - "5002:80"
-    depends_on:
-      - rabbitmq
+#  publisher:
+#    image: publisher
+#    container_name: publisher
+#    build:
+#      context: .
+#      dockerfile: Publisher/Dockerfile
+#    restart: always
+#    ports:
+#      - "5001:80"
+#    depends_on:
+#      - rabbitmq
+#
+#  consumer:
+#    image: consumer
+#    container_name: consumer
+#    build:
+#      context: .
+#      dockerfile: Consumer/Dockerfile
+#    restart: always
+#    ports:
+#      - "5002:80"
+#    depends_on:
+#      - rabbitmq

@@ -13,4 +13,5 @@ public class RabbitMqSetting
     public required int Port { get; set; }
     public required string User { get; set; }
     public required string Password { get; set; }
+    public required string ConnectionName { get; set; }
 }

@@ -2,5 +2,5 @@
 
 public interface IBaseConsumer
 {
-    void StartConsuming();
+    Task StartConsumingAsync(CancellationToken cancellationToken = default);
 }

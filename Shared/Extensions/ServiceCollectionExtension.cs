@@ -26,7 +26,8 @@ public static class ServiceCollectionExtension
             HostName = projectSetting.RabbitMq.Host,
             Port = projectSetting.RabbitMq.Port,
             UserName = projectSetting.RabbitMq.User,
-            Password = projectSetting.RabbitMq.Password
+            Password = projectSetting.RabbitMq.Password,
+            AutomaticRecoveryEnabled = true, // Default: true but i code it for you to see this setting
         });
         services.AddSingleton<RabbitMqConnectionService>();
 

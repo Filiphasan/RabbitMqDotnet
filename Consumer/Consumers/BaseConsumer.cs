@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Runtime.Loader;
+using System.Text;
 using System.Text.Json;
 using Consumer.Consumers.Abstract;
 using RabbitMQ.Client;
@@ -9,7 +10,7 @@ namespace Consumer.Consumers;
 
 public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
 {
-    protected readonly IModel Channel;
+    protected IChannel Channel = null!;
     protected readonly ILogger<T> Logger;
     protected readonly IServiceScopeFactory ScopeFactory;
     protected string QueueName = string.Empty; // Main Queue
@@ -17,40 +18,60 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
     protected bool UseRetry = true; // For Retry Message when fail
     protected int MaxRetryCount = 5; // Default 5 times
     protected int RetryDelayMs = 300_000; // Default 5 minutes
-
-    private readonly Dictionary<string, object> _delayedExchangeArguments;
+    
+    private readonly RabbitMqConnectionService _rabbitMqConnectionService;
+    private readonly Dictionary<string, object?> _delayedExchangeArguments;
 
     protected BaseConsumer(RabbitMqConnectionService rabbitMqConnectionService, ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory)
     {
-        Channel = rabbitMqConnectionService.GetChannelAsync().Result;
         Logger = loggerFactory.CreateLogger<T>();
         ScopeFactory = scopeFactory;
+        _rabbitMqConnectionService = rabbitMqConnectionService;
 
-        _delayedExchangeArguments = new Dictionary<string, object>
+        _delayedExchangeArguments = new Dictionary<string, object?>
         {
             { "x-delayed-type", "direct" }
         };
+        
+        InitializeChannel();
+    }
+
+    private void InitializeChannel()
+    {
+        var channel = _rabbitMqConnectionService.GetChannelAsync().GetAwaiter().GetResult();
+        channel.ChannelShutdownAsync += (_, args) =>
+        {
+            Logger.LogInformation("RabbitMQ channel shutdown. QueueName: {QueueName} Reason: {Reason}", QueueName, args.ReplyText);
+            return Task.CompletedTask;
+        };
+        Channel = channel;
     }
 
     protected abstract Task ConsumeAsync(T message);
 
     protected abstract void SetupConsumer();
 
-    public void StartConsuming()
+    public async Task StartConsumingAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             SetupConsumer();
 
-            Channel.QueueDeclare(queue: QueueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
+            await Channel.QueueDeclareAsync(queue: QueueName, durable: true, exclusive: false, autoDelete: false, arguments: null, cancellationToken: cancellationToken);
             if (UseRetry)
             {
-                Channel.ExchangeDeclare(exchange: $"{ExchangeName}.delayed.retry", type: "x-delayed-message", durable: true, arguments: _delayedExchangeArguments);
-                Channel.QueueBind(queue: QueueName, exchange: $"{ExchangeName}.delayed.retry", routingKey: "");
+                await Channel.ExchangeDeclareAsync(exchange: $"{ExchangeName}.delayed.retry", type: "x-delayed-message", durable: true, arguments: _delayedExchangeArguments, cancellationToken: cancellationToken);
+                await Channel.QueueBindAsync(queue: QueueName, exchange: $"{ExchangeName}.delayed.retry", routingKey: "", cancellationToken: cancellationToken);
             }
+            await Channel.BasicQosAsync(0, 1, false, cancellationToken);
 
-            var consumer = new EventingBasicConsumer(Channel);
-            consumer.Received += async (_, ea) =>
+            var consumer = new AsyncEventingBasicConsumer(Channel);
+            consumer.ShutdownAsync += (_, args) =>
+            {
+                Logger.LogInformation("RabbitMQ consumer shutdown. QueueName: {QueueName} Reason: {Reason}", QueueName, args.ReplyText);
+                return Task.CompletedTask;
+            };
+            consumer.ReceivedAsync += async (_, ea) =>
             {
                 string? messageJson = null;
                 try
@@ -64,15 +85,15 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
                         await ConsumeAsync(message);
                     }
 
-                    Channel.BasicAck(ea.DeliveryTag, false);
+                    await Channel.BasicAckAsync(ea.DeliveryTag, false, cancellationToken);
                 }
                 catch (Exception ex)
                 {
                     Logger.LogError(ex, "Failed to consume message QueueName: {QueueName} UseRetry: {UseRetry} Message: {Message}", QueueName, UseRetry, messageJson);
-                    RetryOrAckMessage(ea, ea.Body.ToArray());
+                    await RetryOrAckMessage(ea, ea.Body.ToArray(), cancellationToken: cancellationToken);
                 }
             };
-            Channel.BasicConsume(QueueName, false, consumer);
+            await Channel.BasicConsumeAsync(QueueName, false, consumer, cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {
@@ -80,15 +101,15 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
         }
     }
 
-    private void RetryOrAckMessage(BasicDeliverEventArgs ea, byte[] body, int? delayMs = null)
+    private async Task RetryOrAckMessage(BasicDeliverEventArgs ea, byte[] body, int? delayMs = null, CancellationToken cancellationToken = default)
     {
         try
         {
             int currentRetryCount = 0;
-            Channel.BasicAck(ea.DeliveryTag, false);
-            if (ea.BasicProperties.Headers.TryGetValue("x-retry-count", out object? value))
+            await Channel.BasicRejectAsync(ea.DeliveryTag, false, cancellationToken);
+            if (ea.BasicProperties.Headers?.TryGetValue("x-retry-count", out object? value) ?? false)
             {
-                currentRetryCount = (int)value;
+                currentRetryCount = (int)value!;
             }
 
             if (!UseRetry)
@@ -103,15 +124,17 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
             }
 
             delayMs ??= RetryDelayMs;
-
-            var properties = Channel.CreateBasicProperties();
+            var properties = new BasicProperties
+            {
+                Headers = ea.BasicProperties.Headers ?? new Dictionary<string, object?>()
+            };
             properties.Headers.Add("x-retry-count", currentRetryCount + 1);
             properties.Headers.Add("x-delay", delayMs);
-            Channel.BasicPublish($"{ExchangeName}.delayed.retry", "", basicProperties: properties, body: body);
+            await Channel.BasicPublishAsync($"{ExchangeName}.delayed.retry", "", true, properties, body, cancellationToken);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to retry message QueueName: {QueueName}", QueueName);
+            Logger.LogError(ex, "Failed to retry or ack message UseRetry: {UseRetry} QueueName: {QueueName}", UseRetry, QueueName);
         }
     }
 }

@@ -8,21 +8,20 @@ namespace Publisher.Services.Implementations;
 
 public class RabbitMqService(RabbitMqConnectionService rabbitMqConnectionService) : IRabbitMqService
 {
-    public async Task SendAsync<T>(T message, string queueName, string messageId)
+    public async Task SendAsync<T>(T message, string queueName, string messageId, CancellationToken cancellationToken = default)
     {
         var channel = await rabbitMqConnectionService.GetChannelAsync();
-        var properties = channel.CreateBasicProperties();
-        properties.Headers = new Dictionary<string, object> { { "x-message-id", messageId } };
+        var properties = new BasicProperties { Headers = new Dictionary<string, object?> { { "x-message-id", messageId } } };
         var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
-        channel.BasicPublish("", queueName, null, body);
+        await channel.BasicPublishAsync("", queueName, false, properties, body, cancellationToken);
     }
 
-    public async Task PublishAsync<T>(T message, string exchangeName, string routingKey, string exchangeType = ExchangeType.Direct)
+    public async Task PublishAsync<T>(T message, string exchangeName, string routingKey, string exchangeType = ExchangeType.Direct, CancellationToken cancellationToken = default)
     {
         var channel = await rabbitMqConnectionService.GetChannelAsync();
-        channel.ExchangeDeclare(exchangeName, exchangeType);
+        await channel.ExchangeDeclareAsync(exchangeName, exchangeType, cancellationToken: cancellationToken);
 
         var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
-        channel.BasicPublish(exchangeName, routingKey, null, body);
+        await channel.BasicPublishAsync(exchangeName, routingKey, false, body, cancellationToken: cancellationToken);
     }
 }
