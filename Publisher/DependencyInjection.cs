@@ -1,4 +1,6 @@
-﻿using Shared.Extensions;
+﻿using Publisher.Services.Implementations;
+using Publisher.Services.Interfaces;
+using Shared.Extensions;
 
 namespace Publisher;
 
@@ -8,6 +10,7 @@ public static class DependencyInjection
     {
         services.AddProjectModels(configuration)
             .AddRabbitMq();
+        services.AddSingleton<IRabbitMqService, RabbitMqService>();
 
         return services;
     }

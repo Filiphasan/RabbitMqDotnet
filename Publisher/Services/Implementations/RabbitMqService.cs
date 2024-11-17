@@ -10,7 +10,7 @@ public class RabbitMqService(RabbitMqConnectionService rabbitMqConnectionService
 {
     public async Task SendAsync<T>(T message, string queueName, string messageId, CancellationToken cancellationToken = default)
     {
-        var channel = await rabbitMqConnectionService.GetChannelAsync();
+        await using var channel = await rabbitMqConnectionService.GetChannelAsync();
         var properties = new BasicProperties { Headers = new Dictionary<string, object?> { { "x-message-id", messageId } } };
         var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
         await channel.BasicPublishAsync("", queueName, false, properties, body, cancellationToken);
@@ -18,7 +18,7 @@ public class RabbitMqService(RabbitMqConnectionService rabbitMqConnectionService
 
     public async Task PublishAsync<T>(T message, string exchangeName, string routingKey, string exchangeType = ExchangeType.Direct, CancellationToken cancellationToken = default)
     {
-        var channel = await rabbitMqConnectionService.GetChannelAsync();
+        await using var channel = await rabbitMqConnectionService.GetChannelAsync();
         await channel.ExchangeDeclareAsync(exchangeName, exchangeType, cancellationToken: cancellationToken);
 
         var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
