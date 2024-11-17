@@ -1,13 +1,17 @@
 ﻿version: '3.8'
 
+name: rabbitmq4-dotnet-example
+
 volumes:
   rabbitmq_data:
     driver: local
 
 services:
   rabbitmq:
-    image: rabbitmq:management
     container_name: rabbitmq
+    build:
+      context: .
+      dockerfile: Dockerfiles/RabbitMq/Dockerfile
     restart: always
     environment:
       RABBITMQ_DEFAULT_USER: rabbitmq
@@ -17,12 +21,6 @@ services:
       - "15672:15672"  # RabbitMQ yönetim paneli portu
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-    # Command for delayed message and message duplication control
-#    command: >
-#      sh -c "
-#      rabbitmq-plugins enable rabbitmq_message_deduplication &&
-#      rabbitmq-plugins enable rabbitmq_delayed_message_exchange
-#      "
 
 #  publisher:
 #    image: publisher
