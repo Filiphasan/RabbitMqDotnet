@@ -8,7 +8,7 @@ namespace Publisher.Services.Implementations;
 
 public class RabbitMqService(RabbitMqConnectionService rabbitMqConnectionService) : IRabbitMqService
 {
-    public async Task SendAsync<T>(T message, string queueName, string messageId, CancellationToken cancellationToken = default)
+    public async Task SendAsync<T>(T message, string queueName, string messageId , CancellationToken cancellationToken = default)
     {
         await using var channel = await rabbitMqConnectionService.GetChannelAsync();
         var properties = new BasicProperties { Headers = new Dictionary<string, object?> { { "x-message-id", messageId } } };

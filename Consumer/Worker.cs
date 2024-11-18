@@ -11,7 +11,7 @@ public class Worker(RabbitMqConnectionService rabbitMqConnectionService, ILogger
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var consumers = Assembly.GetExecutingAssembly().GetTypes()
-            .Where(x => x is { IsClass: true, IsAbstract: false, Namespace: "Consumer.Consumers" })
+            .Where(x => x is { IsClass: true, IsPublic: true, IsAbstract: false, Namespace: "Consumer.Consumers" })
             .ToList();
 
         foreach (var consumer in consumers)
@@ -25,6 +25,7 @@ public class Worker(RabbitMqConnectionService rabbitMqConnectionService, ILogger
                 }
 
                 await instance.StartConsumingAsync(stoppingToken);
+                _logger.LogInformation("Started consumer {Consumer}", consumer.Name);
             }
             catch (Exception ex)
             {

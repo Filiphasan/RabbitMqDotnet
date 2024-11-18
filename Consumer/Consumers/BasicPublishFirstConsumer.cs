@@ -23,6 +23,7 @@ public class BasicPublishFirstConsumer : BaseConsumer<QueueBasicModel>
     {
         QueueName = QueueConstant.QueueNames.BasicPublishFirstQueue;
         ExchangeName = QueueConstant.ExchangeNames.BasicPublishExchange;
+        RoutingKey = QueueConstant.RoutingKeys.BasicPublishRoutingKey;
         UseRetry = true;
         MaxRetryCount = 2;
         RetryDelayMs = 60_000;
