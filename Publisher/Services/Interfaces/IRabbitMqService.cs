@@ -1,9 +1,10 @@
-﻿using RabbitMQ.Client;
+﻿using Publisher.Models;
+using RabbitMQ.Client;
 
 namespace Publisher.Services.Interfaces;
 
 public interface IRabbitMqService
 {
-    Task SendAsync<T>(T message, string queueName, string messageId, CancellationToken cancellationToken = default);
-    Task PublishAsync<T>(T message, string exchangeName, string routingKey, string exchangeType = ExchangeType.Direct, CancellationToken cancellationToken = default);
+    Task SendAsync<T>(SendMessageModel<T> message, CancellationToken cancellationToken = default) where T : class;
+    Task PublishAsync<T>(PublishMessageModel<T> message, CancellationToken cancellationToken = default) where T : class;
 }

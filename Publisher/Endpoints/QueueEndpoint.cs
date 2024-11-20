@@ -18,25 +18,36 @@ public class QueueEndpoint : ICarterModule
         group.MapPost("/publish", PublishAsync);
     }
 
-    private static async Task<IResult> SendAsync([FromBody] BasicSendRequest request, IRabbitMqService rabbitMqService)
+    private static async Task<IResult> SendAsync([FromBody] BasicSendRequest request, IRabbitMqService rabbitMqService, CancellationToken cancellationToken)
     {
         var queueModel = new QueueBasicModel
         {
             PickedNumber = request.PickedNumber,
             Message = request.Message
         };
-        await rabbitMqService.SendAsync(queueModel, QueueConstant.QueueNames.BasicSendQueue, Guid.NewGuid().ToString());
+        var sendModel = new SendMessageModel<QueueBasicModel>
+        {
+            Message = queueModel,
+            QueueName = QueueConstant.QueueNames.BasicSendQueue,
+        };
+        await rabbitMqService.SendAsync(sendModel, cancellationToken);
         return Results.Ok();
     }
 
-    private static async Task<IResult> PublishAsync([FromBody] BasicPublishRequest request, IRabbitMqService rabbitMqService)
+    private static async Task<IResult> PublishAsync([FromBody] BasicPublishRequest request, IRabbitMqService rabbitMqService, CancellationToken cancellationToken)
     {
         var queueModel = new QueueBasicModel
         {
             PickedNumber = request.PickedNumber,
             Message = request.Message
         };
-        await rabbitMqService.PublishAsync(queueModel, QueueConstant.ExchangeNames.BasicPublishExchange, QueueConstant.RoutingKeys.BasicPublishRoutingKey);
+        var publishModel = new PublishMessageModel<QueueBasicModel>
+        {
+            Message = queueModel,
+            ExchangeName = QueueConstant.ExchangeNames.BasicPublishExchange,
+            RoutingKey = QueueConstant.RoutingKeys.BasicPublishRoutingKey,
+        };
+        await rabbitMqService.PublishAsync(publishModel, cancellationToken);
         return Results.Ok();
     }
 }
