@@ -22,7 +22,7 @@ public class BasicSendConsumer : BaseConsumer<QueueBasicModel>
 
     protected override void SetupConsumer()
     {
-        QueueName = QueueConstant.QueueNames.BasicSendQueue;
+        QueueInfo.Name = QueueConstant.QueueNames.BasicSendQueue;
         UseRetry = true;
         MaxRetryCount = 3;
         RetryDelayMs = 60_000;
