@@ -18,7 +18,7 @@ public class Worker(IConfiguration configuration, ILogger<Worker> logger) : Back
             ClientProvidedName = configuration["Settings:RabbitMq:ConnectionName"]!
         };
 
-        await using var connection = await connectionFactory.CreateConnectionAsync(configuration["RabbitMq:ConnectionName"]!, stoppingToken);
+        await using var connection = await connectionFactory.CreateConnectionAsync(configuration["Settings:RabbitMq:ConnectionName"]!, stoppingToken);
         await using var channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
         await channel.QueueDeclareAsync(
