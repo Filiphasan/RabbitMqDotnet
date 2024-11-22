@@ -44,6 +44,8 @@ public class Worker(IConfiguration configuration, ILogger<Worker> logger) : Back
             await channel.BasicAckAsync(ea.DeliveryTag, false, cancellationToken: stoppingToken);
         };
         await channel.BasicConsumeAsync(queue: "basic.with.bad.way.send.queue", autoAck: false, consumer: consumer, cancellationToken: stoppingToken);
+        
+        logger.LogInformation("Basic with bad way Consumer started");
 
         while (!stoppingToken.IsCancellationRequested)
         {

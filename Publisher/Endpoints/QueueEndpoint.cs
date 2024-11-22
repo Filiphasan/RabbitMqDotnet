@@ -33,7 +33,7 @@ public class QueueEndpoint : ICarterModule
             ClientProvidedName = configuration["Settings:RabbitMq:ConnectionName"]!
         };
 
-        await using var connection = await connectionFactory.CreateConnectionAsync(configuration["RabbitMq:ConnectionName"]!, cancellationToken);
+        await using var connection = await connectionFactory.CreateConnectionAsync(configuration["Settings:RabbitMq:ConnectionName"]!, cancellationToken);
         await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
         var properties = new BasicProperties

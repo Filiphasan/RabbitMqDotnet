@@ -10,7 +10,6 @@ public class ConsumerWorker(RabbitMqConnectionService rabbitMqConnectionService,
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        return;
         var consumers = Assembly.GetExecutingAssembly().GetTypes()
             .Where(x => x is { IsClass: true, IsPublic: true, IsAbstract: false, Namespace: "Consumer.Consumers" })
             .ToList();
