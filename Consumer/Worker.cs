@@ -1,36 +1,53 @@
-using System.Reflection;
-using Consumer.Consumers.Abstract;
-using Shared.Services;
+using System.Text;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
 namespace Consumer;
 
-public class Worker(RabbitMqConnectionService rabbitMqConnectionService, ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory) : BackgroundService
+public class Worker(IConfiguration configuration, ILogger<Worker> logger) : BackgroundService
 {
-    private readonly ILogger<Worker> _logger = loggerFactory.CreateLogger<Worker>();
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var consumers = Assembly.GetExecutingAssembly().GetTypes()
-            .Where(x => x is { IsClass: true, IsPublic: true, IsAbstract: false, Namespace: "Consumer.Consumers" })
-            .ToList();
-
-        foreach (var consumer in consumers)
+        var connectionFactory = new ConnectionFactory
         {
-            try
-            {
-                if (Activator.CreateInstance(consumer, rabbitMqConnectionService, loggerFactory, scopeFactory) is not IBaseConsumer instance)
-                {
-                    _logger.LogInformation("Failed to create instance of consumer {Consumer}", consumer.Name);
-                    continue;
-                }
+            HostName = configuration["Settings:RabbitMq:Host"]!,
+            Port = Convert.ToInt32(configuration["Settings:RabbitMq:Port"]!),
+            UserName = configuration["Settings:RabbitMq:User"]!,
+            Password = configuration["Settings:RabbitMq:Password"]!,
+            AutomaticRecoveryEnabled = true,
+            ClientProvidedName = configuration["Settings:RabbitMq:ConnectionName"]!
+        };
 
-                await instance.StartConsumingAsync(stoppingToken);
-                _logger.LogInformation("Started consumer {Consumer}", consumer.Name);
-            }
-            catch (Exception ex)
+        await using var connection = await connectionFactory.CreateConnectionAsync(configuration["RabbitMq:ConnectionName"]!, stoppingToken);
+        await using var channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
+
+        await channel.QueueDeclareAsync(
+            queue: "basic.with.bad.way.send.queue",
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: new Dictionary<string, object?>
             {
-                _logger.LogError(ex, "Failed to start consumer {Consumer}", consumer.Name);
-            }
+                { "x-max-priority", 10 }
+            }, cancellationToken: stoppingToken
+        );
+        await channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, false, cancellationToken: stoppingToken);
+        
+        var consumer = new AsyncEventingBasicConsumer(channel);
+        consumer.ReceivedAsync += async (_, ea) =>
+        {
+            var message = Encoding.UTF8.GetString(ea.Body.ToArray());
+            // Simulate work
+            await Task.Delay(1000, stoppingToken);
+            logger.LogInformation("Message received: {Message}", message);
+
+            await channel.BasicAckAsync(ea.DeliveryTag, false, cancellationToken: stoppingToken);
+        };
+        await channel.BasicConsumeAsync(queue: "basic.with.bad.way.send.queue", autoAck: false, consumer: consumer, cancellationToken: stoppingToken);
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            await Task.Delay(1000, stoppingToken);
         }
     }
 }
