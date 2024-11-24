@@ -119,7 +119,7 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
                 await Channel.BasicRejectAsync(ea.DeliveryTag, false, cancellationToken);
                 return;
             }
-            await Channel.BasicRejectAsync(ea.DeliveryTag, false, cancellationToken);
+
             if (ea.BasicProperties.Headers?.TryGetValue("x-retry-count", out object? value) ?? false)
             {
                 currentRetryCount = (int)value!;
