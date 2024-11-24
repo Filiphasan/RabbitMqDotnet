@@ -3,11 +3,11 @@ using Shared.Common.Constants;
 using Shared.Common.QueueModels;
 using Shared.Services;
 
-namespace Consumer.Consumers;
+namespace Consumer.Consumers.Consumers;
 
-public class BasicPublishSecondConsumer : BaseConsumer<QueueBasicModel>
+public class BasicPublishFirstConsumer : BaseConsumer<QueueBasicModel>
 {
-    public BasicPublishSecondConsumer(RabbitMqConnectionService rabbitMqConnectionService, ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory) : base(rabbitMqConnectionService, loggerFactory, scopeFactory)
+    public BasicPublishFirstConsumer(RabbitMqConnectionService rabbitMqConnectionService, ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory) : base(rabbitMqConnectionService, loggerFactory, scopeFactory)
     {
     }
 
@@ -15,13 +15,13 @@ public class BasicPublishSecondConsumer : BaseConsumer<QueueBasicModel>
     {
         var scope = ScopeFactory.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<IMyService>();
-        await service.DoBasicPublishSecondConsumerWorkAsync(message);
+        await service.DoBasicPublishFirstConsumerWorkAsync(message);
         scope.Dispose();
     }
 
     protected override void SetupConsumer()
     {
-        QueueInfo.Name = QueueConstant.QueueNames.BasicPublishSecondQueue;
+        QueueInfo.Name = QueueConstant.QueueNames.BasicPublishFirstQueue;
         ExchangeInfo.Name = QueueConstant.ExchangeNames.BasicPublishExchange;
         ExchangeInfo.RoutingKey = QueueConstant.RoutingKeys.BasicPublishRoutingKey;
         UseRetry = true;

@@ -6,12 +6,12 @@ namespace Consumer.Workers;
 
 public class ConsumerWorker(RabbitMqConnectionService rabbitMqConnectionService, ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory) : BackgroundService
 {
-    private readonly ILogger<Worker> _logger = loggerFactory.CreateLogger<Worker>();
+    private readonly ILogger<ConsumerWorker> _logger = loggerFactory.CreateLogger<ConsumerWorker>();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var consumers = Assembly.GetExecutingAssembly().GetTypes()
-            .Where(x => x is { IsClass: true, IsPublic: true, IsAbstract: false, Namespace: "Consumer.Consumers" })
+            .Where(x => x is { IsClass: true, IsPublic: true, IsAbstract: false, Namespace: "Consumer.Consumers.Consumers" })
             .ToList();
 
         foreach (var consumer in consumers)

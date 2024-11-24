@@ -3,7 +3,7 @@ using Shared.Common.Constants;
 using Shared.Common.QueueModels;
 using Shared.Services;
 
-namespace Consumer.Consumers;
+namespace Consumer.Consumers.Consumers;
 
 public class BasicSendConsumer : BaseConsumer<QueueBasicModel>
 {
