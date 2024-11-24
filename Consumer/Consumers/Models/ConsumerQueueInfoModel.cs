@@ -10,3 +10,14 @@ public class ConsumerQueueInfoModel
 
     public static ConsumerQueueInfoModel Default => new();
 }
+
+public class ConsumerExchangeInfoModel
+{
+    public string Name { get; set; } = string.Empty;
+    public string RoutingKey { get; set; } = string.Empty;
+    public string ExchangeType { get; set; } = RabbitMQ.Client.ExchangeType.Direct;
+    public bool Durable { get; set; } = true;
+    public IDictionary<string, object?>? Arguments { get; set; } = null;
+    
+    public static ConsumerExchangeInfoModel Default => new();
+}

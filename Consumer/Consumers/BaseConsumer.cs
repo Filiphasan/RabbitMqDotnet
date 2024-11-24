@@ -14,9 +14,8 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
     protected readonly ILogger<T> Logger;
     protected readonly IServiceScopeFactory ScopeFactory;
     protected readonly ConsumerQueueInfoModel QueueInfo = ConsumerQueueInfoModel.Default; // Main Queue Info
-    protected string ExchangeName = string.Empty; // For Retry
-    protected string RoutingKey = string.Empty;
-    protected bool UseRetry = true; // For Retry Message when fail
+    protected readonly ConsumerExchangeInfoModel ExchangeInfo = ConsumerExchangeInfoModel.Default; // For Exchange Bind
+    protected bool UseRetry = true; // For Retry Message when consuming fail
     protected int MaxRetryCount = 5; // Default 5 times
     protected int RetryDelayMs = 300_000; // Default 5 minutes
 
@@ -57,16 +56,17 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
         try
         {
             SetupConsumer();
-            var delayedExchangeName = $"{QueueInfo.Name}.delayed.retry";
 
             await Channel.QueueDeclareAsync(QueueInfo.Name, QueueInfo.Durable, QueueInfo.Exclusive, QueueInfo.AutoDelete, QueueInfo.Arguments, cancellationToken: cancellationToken);
-            if (!string.IsNullOrEmpty(ExchangeName))
+            if (!string.IsNullOrEmpty(ExchangeInfo.Name))
             {
-                await Channel.QueueBindAsync(queue: QueueInfo.Name, exchange: ExchangeName, routingKey: RoutingKey, cancellationToken: cancellationToken);
+                await Channel.ExchangeDeclareAsync(exchange: ExchangeInfo.Name, type: ExchangeInfo.ExchangeType, durable: ExchangeInfo.Durable, arguments: ExchangeInfo.Arguments, cancellationToken: cancellationToken);
+                await Channel.QueueBindAsync(queue: QueueInfo.Name, exchange: ExchangeInfo.Name, routingKey: ExchangeInfo.RoutingKey, cancellationToken: cancellationToken);
             }
 
             if (UseRetry)
             {
+                var delayedExchangeName = $"{QueueInfo.Name}.delayed.retry";
                 await Channel.ExchangeDeclareAsync(exchange: delayedExchangeName, type: "x-delayed-message", durable: true, arguments: _delayedExchangeArguments, cancellationToken: cancellationToken);
                 await Channel.QueueBindAsync(queue: QueueInfo.Name, exchange: delayedExchangeName, routingKey: "", cancellationToken: cancellationToken);
             }
@@ -125,13 +125,13 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
                 return;
             }
 
-            var delayedExchangeName = $"{QueueInfo.Name}.delayed.retry";
             if (currentRetryCount > MaxRetryCount)
             {
                 Logger.LogInformation("Max retry count exceeded for message QueueName: {QueueName} Message: {Message}", QueueInfo.Name, Encoding.UTF8.GetString(body));
                 return;
             }
 
+            var delayedExchangeName = $"{QueueInfo.Name}.delayed.retry";
             delayMs ??= RetryDelayMs;
             var properties = new BasicProperties
             {

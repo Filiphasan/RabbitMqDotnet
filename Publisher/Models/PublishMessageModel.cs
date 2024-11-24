@@ -8,6 +8,8 @@ public class PublishMessageModel<TModel> where TModel : class
     public string ExchangeName { get; set; } = string.Empty;
     public string RoutingKey { get; set; } = string.Empty;
     public string ExchangeType { get; set; } = RabbitMQ.Client.ExchangeType.Direct;
+    public bool Durable { get; set; } = true;
+    public IDictionary<string, object?>? Arguments { get; set; } = null;
     public string MessageId { get; set; } = Guid.NewGuid().ToString();
     public DeliveryModes DeliveryMode { get; set; } = DeliveryModes.Transient;
     public byte Priority { get; set; } = 0;

@@ -22,8 +22,8 @@ public class BasicPublishSecondConsumer : BaseConsumer<QueueBasicModel>
     protected override void SetupConsumer()
     {
         QueueInfo.Name = QueueConstant.QueueNames.BasicPublishSecondQueue;
-        ExchangeName = QueueConstant.ExchangeNames.BasicPublishExchange;
-        RoutingKey = QueueConstant.RoutingKeys.BasicPublishRoutingKey;
+        ExchangeInfo.Name = QueueConstant.ExchangeNames.BasicPublishExchange;
+        ExchangeInfo.RoutingKey = QueueConstant.RoutingKeys.BasicPublishRoutingKey;
         UseRetry = true;
         MaxRetryCount = 2;
         RetryDelayMs = 60_000;

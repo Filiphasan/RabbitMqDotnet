@@ -28,6 +28,7 @@ public static class ServiceCollectionExtension
             UserName = projectSetting.RabbitMq.User,
             Password = projectSetting.RabbitMq.Password,
             AutomaticRecoveryEnabled = true, // Default: true but i code it for you to see this setting
+            ClientProvidedName = projectSetting.RabbitMq.ConnectionName, // Default connection name
         });
         services.AddSingleton<RabbitMqConnectionService>();
 

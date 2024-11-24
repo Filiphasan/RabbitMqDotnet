@@ -42,7 +42,7 @@ public class RabbitMqService(RabbitMqConnectionService rabbitMqConnectionService
                 Priority = message.Priority,
                 DeliveryMode = message.DeliveryMode,
             };
-            await channel.ExchangeDeclareAsync(message.ExchangeName, message.ExchangeType, cancellationToken: cancellationToken);
+            await channel.ExchangeDeclareAsync(message.ExchangeName, message.ExchangeType, durable: message.Durable, arguments: message.Arguments, cancellationToken: cancellationToken);
             var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message.Message));
             await channel.BasicPublishAsync(message.ExchangeName, message.RoutingKey, false, properties, body, cancellationToken: cancellationToken);
         }
