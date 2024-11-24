@@ -16,7 +16,7 @@ public class RabbitMqService(RabbitMqConnectionService rabbitMqConnectionService
         {
             var properties = new BasicProperties
             {
-                Headers = new Dictionary<string, object?> { { "x-message-id", message.MessageId }, { "x-max-priority", 10 } },
+                Headers = new Dictionary<string, object?> { { "x-message-id", message.MessageId } },
                 MessageId = message.MessageId,
                 Priority = message.Priority,
                 DeliveryMode = message.DeliveryMode,
@@ -37,7 +37,7 @@ public class RabbitMqService(RabbitMqConnectionService rabbitMqConnectionService
         {
             var properties = new BasicProperties
             {
-                Headers = new Dictionary<string, object?> { { "x-message-id", message.MessageId }, { "x-max-priority", 10 } },
+                Headers = new Dictionary<string, object?> { { "x-message-id", message.MessageId } },
                 MessageId = message.MessageId,
                 Priority = message.Priority,
                 DeliveryMode = message.DeliveryMode,

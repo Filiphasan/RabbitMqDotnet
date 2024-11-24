@@ -1,5 +1,4 @@
 ﻿using Publisher.Models;
-using RabbitMQ.Client;
 
 namespace Publisher.Services.Interfaces;
 
