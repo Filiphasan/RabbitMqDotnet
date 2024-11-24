@@ -98,7 +98,7 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
                 catch (Exception ex)
                 {
                     Logger.LogError(ex, "Failed to consume message QueueName: {QueueName} UseRetry: {UseRetry} Message: {Message}", QueueInfo.Name, UseRetry, messageJson);
-                    await RetryOrAckMessage(ea, ea.Body.ToArray(), cancellationToken: cancellationToken);
+                    await RetryOrAckOrRejectMessage(ea, ea.Body.ToArray(), cancellationToken: cancellationToken);
                 }
             };
             await Channel.BasicConsumeAsync(QueueInfo.Name, false, consumer, cancellationToken: cancellationToken);
@@ -109,27 +109,30 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
         }
     }
 
-    private async Task RetryOrAckMessage(BasicDeliverEventArgs ea, byte[] body, int? delayMs = null, CancellationToken cancellationToken = default)
+    private async Task RetryOrAckOrRejectMessage(BasicDeliverEventArgs ea, byte[] body, int? delayMs = null, CancellationToken cancellationToken = default)
     {
         try
         {
             int currentRetryCount = 0;
+            if (!UseRetry)
+            {
+                await Channel.BasicRejectAsync(ea.DeliveryTag, false, cancellationToken);
+                return;
+            }
             await Channel.BasicRejectAsync(ea.DeliveryTag, false, cancellationToken);
             if (ea.BasicProperties.Headers?.TryGetValue("x-retry-count", out object? value) ?? false)
             {
                 currentRetryCount = (int)value!;
             }
 
-            if (!UseRetry)
-            {
-                return;
-            }
-
             if (currentRetryCount > MaxRetryCount)
             {
                 Logger.LogInformation("Max retry count exceeded for message QueueName: {QueueName} Message: {Message}", QueueInfo.Name, Encoding.UTF8.GetString(body));
+                await Channel.BasicRejectAsync(ea.DeliveryTag, false, cancellationToken);
                 return;
             }
+
+            await Channel.BasicAckAsync(ea.DeliveryTag, false, cancellationToken);
 
             var delayedExchangeName = $"{QueueInfo.Name}.delayed.retry";
             delayMs ??= RetryDelayMs;
