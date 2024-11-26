@@ -10,7 +10,7 @@ namespace Consumer.Consumers;
 
 public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
 {
-    protected IChannel Channel = null!;
+    private IChannel _channel = null!;
     protected readonly ILogger<T> Logger;
     protected readonly IServiceScopeFactory ScopeFactory;
     protected readonly ConsumerQueueInfoModel QueueInfo = ConsumerQueueInfoModel.Default; // Main Queue Info
@@ -42,7 +42,7 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
             Logger.LogInformation("RabbitMQ channel shutdown. QueueName: {QueueName} Reason: {Reason}", QueueInfo.Name, args.ReplyText);
             return Task.CompletedTask;
         };
-        Channel = channel;
+        _channel = channel;
     }
 
     protected abstract Task ConsumeAsync(T message);
@@ -56,23 +56,23 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
             await InitializeChannelAsync();
             SetupConsumer();
 
-            await Channel.QueueDeclareAsync(QueueInfo.Name, QueueInfo.Durable, QueueInfo.Exclusive, QueueInfo.AutoDelete, QueueInfo.Arguments, cancellationToken: cancellationToken);
+            await _channel.QueueDeclareAsync(QueueInfo.Name, QueueInfo.Durable, QueueInfo.Exclusive, QueueInfo.AutoDelete, QueueInfo.Arguments, cancellationToken: cancellationToken);
             if (!string.IsNullOrEmpty(ExchangeInfo.Name))
             {
-                await Channel.ExchangeDeclareAsync(exchange: ExchangeInfo.Name, type: ExchangeInfo.ExchangeType, durable: ExchangeInfo.Durable, arguments: ExchangeInfo.Arguments, cancellationToken: cancellationToken);
-                await Channel.QueueBindAsync(queue: QueueInfo.Name, exchange: ExchangeInfo.Name, routingKey: ExchangeInfo.RoutingKey, cancellationToken: cancellationToken);
+                await _channel.ExchangeDeclareAsync(exchange: ExchangeInfo.Name, type: ExchangeInfo.ExchangeType, durable: ExchangeInfo.Durable, arguments: ExchangeInfo.Arguments, cancellationToken: cancellationToken);
+                await _channel.QueueBindAsync(queue: QueueInfo.Name, exchange: ExchangeInfo.Name, routingKey: ExchangeInfo.RoutingKey, cancellationToken: cancellationToken);
             }
 
             if (UseRetry)
             {
                 var delayedExchangeName = $"{QueueInfo.Name}.delayed.retry";
-                await Channel.ExchangeDeclareAsync(exchange: delayedExchangeName, type: "x-delayed-message", durable: true, arguments: _delayedExchangeArguments, cancellationToken: cancellationToken);
-                await Channel.QueueBindAsync(queue: QueueInfo.Name, exchange: delayedExchangeName, routingKey: "", cancellationToken: cancellationToken);
+                await _channel.ExchangeDeclareAsync(exchange: delayedExchangeName, type: "x-delayed-message", durable: true, arguments: _delayedExchangeArguments, cancellationToken: cancellationToken);
+                await _channel.QueueBindAsync(queue: QueueInfo.Name, exchange: delayedExchangeName, routingKey: "", cancellationToken: cancellationToken);
             }
 
-            await Channel.BasicQosAsync(0, 1, false, cancellationToken);
+            await _channel.BasicQosAsync(0, 1, false, cancellationToken);
 
-            var consumer = new AsyncEventingBasicConsumer(Channel);
+            var consumer = new AsyncEventingBasicConsumer(_channel);
             consumer.ShutdownAsync += (_, args) =>
             {
                 Logger.LogInformation("RabbitMQ consumer shutdown. QueueName: {QueueName} Reason: {Reason}", QueueInfo.Name, args.ReplyText);
@@ -92,7 +92,7 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
                         await ConsumeAsync(message);
                     }
 
-                    await Channel.BasicAckAsync(ea.DeliveryTag, false, cancellationToken);
+                    await _channel.BasicAckAsync(ea.DeliveryTag, false, cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -100,7 +100,7 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
                     await RetryOrAckOrRejectMessage(ea, ea.Body.ToArray(), cancellationToken: cancellationToken);
                 }
             };
-            await Channel.BasicConsumeAsync(QueueInfo.Name, false, consumer, cancellationToken: cancellationToken);
+            await _channel.BasicConsumeAsync(QueueInfo.Name, false, consumer, cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {
@@ -115,7 +115,7 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
             int currentRetryCount = 0;
             if (!UseRetry)
             {
-                await Channel.BasicRejectAsync(ea.DeliveryTag, false, cancellationToken);
+                await _channel.BasicRejectAsync(ea.DeliveryTag, false, cancellationToken);
                 return;
             }
 
@@ -127,11 +127,11 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
             if (currentRetryCount > MaxRetryCount)
             {
                 Logger.LogInformation("Max retry count exceeded for message QueueName: {QueueName} Message: {Message}", QueueInfo.Name, Encoding.UTF8.GetString(body));
-                await Channel.BasicRejectAsync(ea.DeliveryTag, false, cancellationToken);
+                await _channel.BasicRejectAsync(ea.DeliveryTag, false, cancellationToken);
                 return;
             }
 
-            await Channel.BasicAckAsync(ea.DeliveryTag, false, cancellationToken);
+            await _channel.BasicAckAsync(ea.DeliveryTag, false, cancellationToken);
 
             var delayedExchangeName = $"{QueueInfo.Name}.delayed.retry";
             delayMs ??= RetryDelayMs;
@@ -141,7 +141,7 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
             };
             properties.Headers["x-retry-count"] = currentRetryCount + 1;
             properties.Headers["x-delay"] = delayMs;
-            await Channel.BasicPublishAsync(delayedExchangeName, "", true, properties, body, cancellationToken);
+            await _channel.BasicPublishAsync(delayedExchangeName, "", true, properties, body, cancellationToken);
         }
         catch (Exception ex)
         {
