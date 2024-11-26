@@ -32,13 +32,11 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
         {
             { "x-delayed-type", "direct" }
         };
-
-        InitializeChannel();
     }
 
-    private void InitializeChannel()
+    private async Task InitializeChannelAsync()
     {
-        var channel = _rabbitMqConnectionService.GetChannelAsync().GetAwaiter().GetResult();
+        var channel = await _rabbitMqConnectionService.GetChannelAsync();
         channel.ChannelShutdownAsync += (_, args) =>
         {
             Logger.LogInformation("RabbitMQ channel shutdown. QueueName: {QueueName} Reason: {Reason}", QueueInfo.Name, args.ReplyText);
@@ -55,6 +53,7 @@ public abstract class BaseConsumer<T> : IBaseConsumer where T : class, new()
     {
         try
         {
+            await InitializeChannelAsync();
             SetupConsumer();
 
             await Channel.QueueDeclareAsync(QueueInfo.Name, QueueInfo.Durable, QueueInfo.Exclusive, QueueInfo.AutoDelete, QueueInfo.Arguments, cancellationToken: cancellationToken);
